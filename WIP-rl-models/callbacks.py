@@ -111,11 +111,11 @@ class DualWriter:
         self.file = open(file_name, 'w')
     
     def write(self, msg):
-        sys.__stdout__.write(msg)  # This prints to the console
+        original_value.write(msg)  # This prints to the console
         self.file.write(msg)       # This writes to the file
     
     def flush(self):
-        sys.__stdout__.flush()  # Ensure it flushes the console output
+        original_value.flush()  # Ensure it flushes the console output
         self.file.flush()       # Ensure it flushes the file output
 
 # Create an instance of DualWriter and assign it to sys.stdout
