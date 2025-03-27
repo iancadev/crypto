@@ -1,0 +1,26 @@
+----------------------------
+| time/              |     |
+|    fps             | 53  |
+|    iterations      | 1   |
+|    time_elapsed    | 3   |
+|    total_timesteps | 200 |
+----------------------------
+-------------------------------------------
+| time/                   |               |
+|    fps                  | 39            |
+|    iterations           | 2             |
+|    time_elapsed         | 10            |
+|    total_timesteps      | 400           |
+| train/                  |               |
+|    approx_kl            | 0.00013098388 |
+|    clip_fraction        | 0             |
+|    clip_range           | 0.2           |
+|    entropy_loss         | -4.26         |
+|    explained_variance   | -0.0987       |
+|    learning_rate        | 0.0001        |
+|    loss                 | 0.000496      |
+|    n_updates            | 10            |
+|    policy_gradient_loss | -0.00174      |
+|    std                  | 1             |
+|    value_loss           | 0.0951        |
+-------------------------------------------
