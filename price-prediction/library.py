@@ -54,5 +54,7 @@ def getAssets(tickers, eraseExisting=False, plotOutput='get-assets_date-ranges')
     local_scope = run_notebook_without_ipython(output_path)
     return local_scope['output_data']
 
+
+
 if __name__ == '__main__':
     print(getAssets(['DOGEUSDC', 'ETHUSDC']))
