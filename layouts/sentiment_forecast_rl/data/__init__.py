@@ -133,6 +133,10 @@ def subset(df, start=pd.Timestamp('2000-01-01'), end=pd.Timestamp('2000-01-01'))
     return df.loc[start:end]
 
 
+def row_delta(row1, row2):
+    return abs(pd.Timedelta(row1.name - row2.name))
+
+
 def fill_missing(df, policy="linear"):
     if policy == "linear":
         df = df.interpolate(method='linear', axis=0)
