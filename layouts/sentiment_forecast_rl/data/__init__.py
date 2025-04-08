@@ -218,6 +218,12 @@ def add_fear_and_greed(df):
     return df
 
 
+def train_test_split(df, split=0.8):
+    train_size = int(len(df) * split)
+    df.iloc[:train_size]["SPLIT"] = "train"
+    df.iloc[train_size:]["SPLIT"] = "test"
+    df['SPLIT'] = df['SPLIT'].astype('category')
+
 
 def save_train_test(df):
     pass
