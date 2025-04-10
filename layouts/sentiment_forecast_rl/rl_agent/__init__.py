@@ -2,6 +2,7 @@ import sys
 from stable_baselines3.common.vec_env import DummyVecEnv
 from gymnasium.spaces import Box
 import pandas as pd
+import numpy as np
 
 
 __original_stdout = sys.stdout
@@ -24,34 +25,72 @@ def __end_dual_write():
     sys.stdout = __original_stdout
 
 
-def __set_first_na(df, value):
-    first_na_index = df[df.isna().any(axis=1)].index[0]
-    df.loc[first_na_index] = value
-    return df
+def __set_first_na(df, value, column=None):
+    if column is None:
+        first_na_index = df[df.isna().any(axis=1)].index[0]
+        df.loc[first_na_index] = value
+        return df
+    else:
+        first_na_index = df[df[column].isna()].index[0]
+        df.loc[first_na_index, column] = value
+        return df
+    
+def __get_last_row(df, column=None):
+    if column is None:
+        last_valid_index = df.dropna().index[-1]
+        return df.loc[last_valid_index]
+    else:
+        last_valid_index = df[df[column].notna()].index[-1]
+        return df.loc[last_valid_index]
 
 
 
-def get_plain_env_functions(df):
-    def train_gen_gen():
+"""
+FLAVOR: Single Asset (Plain)
+Provide one row of the df per time-step
+Reward is cumulative return
+
+
+Requires columns:
+unnormalized: Target (=Open), SPLIT
+(various normalized, financial indicators)
+"""
+def _singleAsset_env_functions(df, lmbda=0.9, episodeLength=100):
+    split_returns = {SPLIT: df[df["SPLIT"] == SPLIT]["Target"] for SPLIT in ["train", "test"]}
+    split_rows = {SPLIT: df[df["SPLIT"] == SPLIT].drop(columns=["Target", "SPLIT"]).values for SPLIT in ["train", "test"]}
+
+    number_of_indicators = df.shape[1] - 2
+
+    def gen_gen(SPLIT):
+        returns = split_returns[SPLIT]
+        rows = split_rows[SPLIT]
+
         def state_gen():
-            reward.action_notebook = pd.DataFrame()
-            pass
+            reward.actionNotebook = pd.DataFrame([float('nan')] * episodeLength, columns=["action"])
+            reward.total = 0
+            index = np.random.randint(0, len(returns) - episodeLength)
+            episode_returns = returns.iloc[index:index + episodeLength]
+            episode_rows = rows.iloc[index:index + episodeLength]
 
-        def reward():
-            pass
+            reward.actionNotebook['returns'] = episode_returns
+            for row in rows:
+                yield row
+
+        def reward(action):
+            __set_first_na(reward.actionNotebook, action, column="action")
+            last_row = __get_last_row(reward.actionNotebook)
+            reward.total = last_row["action"] * last_row["returns"] + reward.total * lmbda
+            return reward.total
 
         return {'state_gen': state_gen, 'reward': reward}
-        
 
-    def test_gen_gen():
-        pass
 
-    action_space = None
-    observation_space = None
+    action_space = Box(low=0, high=1, shape=(1,), dtype=np.float64)
+    observation_space = Box(low=0, high=1, shape=(number_of_indicators,), dtype=np.float64)
 
     return {
-        'train_gen_gen': train_gen_gen,
-        'test_gen_gen': test_gen_gen,
+        'train_gen_gen': lambda : gen_gen("train"),
+        'test_gen_gen': lambda: gen_gen("test"),
         'action_space': action_space,
         'observation_space': observation_space,
     }
