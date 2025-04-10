@@ -211,18 +211,23 @@ def add_fear_and_greed(df):
     f_n_g_csv['date'] = pd.to_datetime(f_n_g_csv['date'])
     f_n_g_csv.set_index('date', inplace=True)
 
-    df['plain-date'] = df.index.map(lambda x: x.replace(hour=0, minute=0, second=0, microsecond=0))
-    df['F&G value'] = df['plain-date'].map(lambda x: f_n_g_csv['value'].loc[x] if x.date() in f_n_g_csv.index.date else None)
-    df['F&G category'] = df['plain-date'].map(lambda x: f_n_g_csv['classification'].loc[x] if x.date() in f_n_g_csv.index.date else None)
+    df = df.copy()  # Avoid potential SettingWithCopyWarning
+    df.loc[:, 'plain-date'] = df.index.map(lambda x: x.replace(hour=0, minute=0, second=0, microsecond=0))
+    df.loc[:, 'F&G value'] = df['plain-date'].map(lambda x: f_n_g_csv['value'].loc[x] if x.date() in f_n_g_csv.index.date else None)
+    df.loc[:, 'F&G category'] = df['plain-date'].map(lambda x: f_n_g_csv['classification'].loc[x] if x.date() in f_n_g_csv.index.date else None)
     df.drop(columns=['plain-date'], inplace=True)
     return df
 
 
 def train_test_split(df, split=0.8):
     train_size = int(len(df) * split)
-    df.iloc[:train_size]["SPLIT"] = "train"
-    df.iloc[train_size:]["SPLIT"] = "test"
-    df['SPLIT'] = df['SPLIT'].astype('category')
+    df['SPLIT'] = pd.Categorical([None] * len(df), categories=["train", "test"])
+    for i, ind in enumerate(df.index):
+        if i < train_size:
+            df.loc[ind, "SPLIT"] = "train"
+        else:
+            df.loc[ind, "SPLIT"] = "test"
+    return df
 
 
 def save_train_test(df):
@@ -231,3 +236,6 @@ def save_train_test(df):
 
 def load_train_test():
     pass
+
+
+a = 5
