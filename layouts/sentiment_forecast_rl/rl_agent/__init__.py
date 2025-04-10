@@ -73,7 +73,7 @@ def _singleAsset_env_functions(df, lmbda=0.9, episodeLength=100):
             episode_rows = rows.iloc[index:index + episodeLength]
 
             reward.actionNotebook['returns'] = episode_returns
-            for row in rows:
+            for row in episode_rows:
                 yield row
 
         def reward(action):
