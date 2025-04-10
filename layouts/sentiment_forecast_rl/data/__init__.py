@@ -222,11 +222,10 @@ def add_fear_and_greed(df):
 def train_test_split(df, split=0.8):
     train_size = int(len(df) * split)
     df['SPLIT'] = pd.Categorical([None] * len(df), categories=["train", "test"])
-    for i, ind in enumerate(df.index):
-        if i < train_size:
-            df.loc[ind, "SPLIT"] = "train"
-        else:
-            df.loc[ind, "SPLIT"] = "test"
+    train_indices = df.index[:train_size]
+    test_indices = df.index[train_size:]
+    df.loc[train_indices, "SPLIT"] = "train"
+    df.loc[test_indices, "SPLIT"] = "test"
     return df
 
 
