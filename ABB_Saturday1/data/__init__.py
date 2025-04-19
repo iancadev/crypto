@@ -5,6 +5,8 @@ from selenium.webdriver.chrome.options import Options
 import time, os, requests, zipfile
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
 def __load_file(fname):
     fname = os.path.join(os.path.dirname(__file__), fname)
@@ -156,8 +158,12 @@ def __get_available_times(ticker):
 
     try:
         driver.get(url)
-        time.sleep(1)
 
+        # Wait until tbody#listing contains at least one <a> element
+
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "tbody#listing a"))
+        )
         # Locate all <a> elements inside <tbody id="listing">
         elements = driver.find_elements(By.CSS_SELECTOR, "tbody#listing a")
         texts = [element.text for element in elements]
@@ -172,14 +178,13 @@ def __get_available_times(ticker):
 
 def plot_available_times(tickers):
     import matplotlib.pyplot as plt
-    import numpy as np
     plt.figure(figsize=(10, 6))
     for ticker in tickers:
         times = pd.Series(__get_available_times(ticker))
         asset_times = pd.to_datetime(times, format='%Y-%m-%d')
-        asset_times = asset_times.sort_values()
+        asset_times.sort_values(inplace=True)
         
-        if asset_times.empty:
+        if len(asset_times) == 0:
             print(f"No available times for ticker: {ticker}")
             continue
 
@@ -192,10 +197,11 @@ def plot_available_times(tickers):
                     consecutive_pairs.append((start_pair, end_pair))
                 start_pair = asset_times.iloc[i]
             end_pair = asset_times.iloc[i]
+        consecutive_pairs.append((start_pair, end_pair))
 
         for start, end in consecutive_pairs:
-            plt.plot([start, end], [ticker, ticker], marker='o', label=ticker)
-
+            plt.plot([start, end], [ticker, ticker], marker='|')
+        plt.scatter(asset_times, [ticker] * len(asset_times), label=ticker)
     plt.xlabel("Time")
     plt.ylabel("Ticker")
     plt.title("Available Times for Tickers")

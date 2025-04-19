@@ -232,6 +232,7 @@ def test_data_iterator(splitted_df, lookback=14):
 
     for i in range(lookback, len(splitted_df)):
         if splitted_df.iloc[i]["SPLIT"] == "test":
-            current_row = splitted_df.iloc[i]
-            lookback_rows = splitted_df["Return"].iloc[i - lookback:i]
-            yield {"current": current_row, "lookback": lookback_rows}
+            # current_row = splitted_df.iloc[i]
+            # lookback_rows = splitted_df["Return"].iloc[i - lookback:i]
+            # yield {"current": current_row, "lookback": lookback_rows}
+            yield { splitted_df.iloc[i-lookback:i, :]}
