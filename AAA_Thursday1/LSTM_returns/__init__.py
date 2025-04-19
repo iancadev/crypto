@@ -98,7 +98,7 @@ def train(model, hyperparams, train_X_y):
         'batch_size': hyperparams.get('batch_size', 32),
     }
     model.fit(train_X_y["train_X"], train_X_y["train_y"], epochs=hyperparams['epochs'], batch_size=hyperparams['batch_size'], verbose=1)
-    return model_evaluations(model, train_X_y["train_X"], train_X_y["train_y"])
+    return evaluate(model, train_X_y["train_X"], train_X_y["train_y"])
 
 
 def predict(model, df, SPLIT="train", features=[], target="Return", episode_length=30):
