@@ -4,14 +4,59 @@ import cvxpy as cp
 import numpy as np
 
 
-def get_optimization_input(price_array: np.ndarray, hyperparams):
-    v = hyperparams["v"]
-    def update_hyperparams(hyperparams):
-        nonlocal v
-        v = hyperparams["v"]
+def get_optimization_input(past_prices: np.ndarray,
+                           predicted_prices: np.ndarray,
+                           window: int = 60,
+                           rf: float = 0.0):
+    """
+    Build inputs for portfolio optimizers, including:
+      • mu      : expected returns (from full history)
+      • Sigma   : covariance matrix (from last `window` days of returns)
+      • last    : most recent prices
+      • r_pred  : implied forecast returns = pred/last – 1
+      • w_prev  : default current weights (equal‐weight)
+      • rf      : risk‐free rate
 
+    Args:
+        past_prices      : array, shape (T, n), historical price series
+        predicted_prices : array, shape (n,), your future price forecasts
+        window           : int, look‐back window for covariance
+        rf               : float, risk‐free rate
 
-    def max_return_with_turnover(mu: np.ndarray,
+    Returns:
+        dict with keys:
+          "mu", "Sigma", "last_prices", "r_pred", "w_prev", "rf"
+    """
+    # 1) simple returns: shape (T-1, n)
+    rets = past_prices[1:] / past_prices[:-1] - 1
+
+    # 2) expected returns over full history
+    mu = np.mean(rets, axis=0)
+
+    # 3) rolling‐window covariance: last `window` returns
+    if rets.shape[0] < window:
+        raise ValueError(f"Need at least {window+1} days of prices, got {past_prices.shape[0]}")
+    rets_window = rets[-window:]            # shape (window, n)
+    Sigma = np.cov(rets_window, rowvar=False)  # shape (n, n)
+
+    # 4) most recent prices & implied forecast returns
+    last_prices = past_prices[-1]
+    r_pred = predicted_prices / last_prices - 1
+
+    # 5) default “current” weights (equal‐weight)
+    n = mu.shape[0]
+    w_prev = np.ones(n) / n
+
+    return {
+        "mu": mu,                   # (n,)
+        "Sigma": Sigma,             # (n, n)
+        "last_prices": last_prices, # (n,)
+        "r_pred": r_pred,           # (n,)
+        "w_prev": w_prev,           # (n,)
+        "rf": rf                    # scalar
+    }
+
+def max_return_with_turnover(mu: np.ndarray,
                                         w_prev: np.ndarray,
                                         turnover_penalty: float = 1.0,
                                         long_only: bool = True) -> np.ndarray:
@@ -52,7 +97,7 @@ def get_optimization_input(price_array: np.ndarray, hyperparams):
         return w.value
 
 
-    def optimize_mean_variance(mu: np.ndarray,
+def optimize_mean_variance(mu: np.ndarray,
                             Sigma: np.ndarray,
                             risk_aversion: float = 1.0,
                             long_only: bool = True) -> np.ndarray:
@@ -94,7 +139,7 @@ def get_optimization_input(price_array: np.ndarray, hyperparams):
 
         return w.value
 
-    def max_sharpe_ratio(mu: np.ndarray,
+def max_sharpe_ratio(mu: np.ndarray,
                         Sigma: np.ndarray,
                         rf: float = 0.0) -> np.ndarray:
         """
