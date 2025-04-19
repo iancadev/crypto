@@ -120,90 +120,28 @@ def load_asset(ticker, sampling="30m"):
 
 
 
+def load_scaled_asset(ticker1, scale_by, sampling="30m", save_to=None):
+    # for example: ticker1 = "ETHBTC" scale_by = "BTCUSDT"
+    asset = load_asset(ticker1, sampling=sampling)
+    scaling = load_asset(scale_by, sampling=sampling)
 
-def subset(df, start=pd.Timestamp('2000-01-01'), end=pd.Timestamp('2000-01-01')):
-    start = pd.to_datetime(start)
-    if start not in df.index:
-        start = df.index[df.index.get_indexer([start], method='nearest')[0]]
-    end = pd.to_datetime(end)
-    if end not in df.index:
-        end = df.index[df.index.get_indexer([end], method='nearest')[0]]
-    return df.loc[start:end]
+    # Open,High,Low,Close,Volume,Quote asset volume,Number of trades,Taker buy base asset volume,Taker buy quote asset volume
+    scaled_asset = pd.DataFrame()
 
+    for index, row in asset.iterrows():
+        if index in scaling.index:
+            scaling_row = scaling.loc[index]
+            scaled_row = row.copy()
+            scaled_row['Open'] /= scaling_row['Open']
+            scaled_row['High'] /= scaling_row['High']
+            scaled_row['Low'] /= scaling_row['Low']
+            scaled_row['Close'] /= scaling_row['Close']
+            scaled_row['Quote asset volume'] /= scaling_row['Close']
+            # scaled_row['Taker buy base asset volume'] /= scaling_row['Close']
+            scaled_row['Taker buy quote asset volume'] /= scaling_row['Close']
+            scaled_asset = pd.concat([scaled_asset, scaled_row.to_frame().T])
 
-def row_delta(row1, row2):
-    return abs(pd.Timedelta(row1.name - row2.name))
+    if save_to:
+        scaled_asset.to_csv(save_to)
 
-def report_gaps(df, delta=pd.Timedelta('30m')):
-    gapTimes = []
-    rows = list(df.iterrows())
-    for S1, S2 in zip(rows[:-1], rows[1:]):
-        i1, row1 = S1
-        i2, row2 = S2
-        if row_delta(row1, row2) > delta:
-            gapTimes.append((row1.name, row2.name, row_delta(row1, row2)))
-    return gapTimes
-
-
-
-available_times = {}
-def __get_available_times(ticker):
-    if ticker in available_times:
-        return available_times[ticker]
-
-    url = f"https://data.binance.vision/?prefix=data/spot/daily/klines/{ticker}/30m/"
-    options = Options()
-    options.add_argument("--headless")
-    driver = webdriver.Edge(options=options)
-
-    try:
-        driver.get(url)
-
-        # Wait until tbody#listing contains at least one <a> element
-
-        WebDriverWait(driver, 30).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, "tbody#listing a"))
-        )
-        # Locate all <a> elements inside <tbody id="listing">
-        elements = driver.find_elements(By.CSS_SELECTOR, "tbody#listing a")
-        texts = [element.text for element in elements]
-
-        texts = [i.split(".")[0].split("-30m-")[1] for i in texts if i.endswith(".zip")]
-
-        available_times[ticker] = texts
-        return texts
-    finally:
-        driver.quit()
-
-
-def plot_available_times(tickers):
-    import matplotlib.pyplot as plt
-    plt.figure(figsize=(10, 6))
-    for ticker in tickers:
-        times = pd.Series(__get_available_times(ticker))
-        asset_times = pd.to_datetime(times, format='%Y-%m-%d')
-        asset_times.sort_values(inplace=True)
-        
-        if len(asset_times) == 0:
-            print(f"No available times for ticker: {ticker}")
-            continue
-
-        consecutive_pairs = []
-        start_pair = asset_times.iloc[0]
-        end_pair = asset_times.iloc[0]
-        for i in range(1, len(asset_times)):
-            if (asset_times.iloc[i] - asset_times.iloc[i-1]).days > 1:
-                if start_pair != end_pair:
-                    consecutive_pairs.append((start_pair, end_pair))
-                start_pair = asset_times.iloc[i]
-            end_pair = asset_times.iloc[i]
-        consecutive_pairs.append((start_pair, end_pair))
-
-        for start, end in consecutive_pairs:
-            plt.plot([start, end], [ticker, ticker], marker='|')
-        plt.scatter(asset_times, [ticker] * len(asset_times), label=ticker)
-    plt.xlabel("Time")
-    plt.ylabel("Ticker")
-    plt.title("Available Times for Tickers")
-    plt.grid(True)
-    plt.show()
+    return scaled_asset
