@@ -6,15 +6,17 @@ from tensorflow.keras.layers import LSTM, Dense, Dropout, Activation, Flatten, B
 from sklearn.metrics import mean_squared_error, r2_score
 # optuna scrap goes in the ipynb, okay?
 
-def vectorize_train_data(splitted_df, target="Return", features=["Open", "High", "Low", "Close", "Volume"], episode_length=30):
+def vectorize_train_data(splitted_df, target="Return_Target", features=["Open", "High", "Low", "Close", "Volume"], episode_length=30):
     # for each row with row["SPLIT"] = "train"
     # yield a train_X and a train_y array, where train_y is just "Return"
     # and train_X is the rest of the columns, but without "SPLIT" and "Return"
     
     train_X = []
     train_y = []
+    train_index = []
     test_X = []
     test_y = []
+    test_index = []
     for i in range(len(splitted_df)):
         if splitted_df.iloc[i]["SPLIT"] == "train":
             current_row = splitted_df.iloc[i]
@@ -22,28 +24,37 @@ def vectorize_train_data(splitted_df, target="Return", features=["Open", "High",
             current_row_features = [current_row[feature] for feature in features]
             train_X.append(current_row_features)
             
-            train_y.append(current_row["Return"])
+            train_y.append(current_row[target])
+
+            train_index.append(splitted_df.index[i])
         if splitted_df.iloc[i]["SPLIT"] == "test":
             current_row = splitted_df.iloc[i]
             
             current_row_features = [current_row[feature] for feature in features]
             test_X.append(current_row_features)
             
-            test_y.append(current_row["Return"])
+            test_y.append(current_row[target])
+            test_index.append(splitted_df.index[i])
+
+    train_start_i = len(train_X)
 
     # Convert train_X and test_X into episodes
     train_X = np.array([train_X[i:i + episode_length] for i in range(len(train_X) - episode_length + 1)])
     train_y = np.array(train_y[episode_length - 1:])
+    train_index = np.array(train_index[episode_length - 1:])
 
     # Combine train and test data for overlapping episodes
     combined_X = train_X.tolist() + test_X
     combined_y = train_y.tolist() + test_y
+    combined_index = train_index.tolist() + test_index
 
     # Generate episodes for test_X and test_y
     test_X = np.array([combined_X[i:i + episode_length] for i in range(len(train_X), len(combined_X) - episode_length + 1)])
     test_y = np.array(combined_y[len(train_X) + episode_length - 1:])
+    test_index = np.array(combined_index[len(train_X) + episode_length - 1:])
     
-    return { 'train_X': train_X, 'train_y': train_y, 'test_X': test_X, 'test_y': test_y }
+    return { 'train_X': train_X, 'train_y': train_y, 'test_X': test_X, 'test_y': test_y,
+            'train_index': train_index, 'test_index': test_index }
 
 
 def create(hyperparams):
@@ -54,9 +65,9 @@ def create(hyperparams):
         'dropout': hyperparams.get('dropout', 0.2),
         'learning_rate': hyperparams.get('learning_rate', 0.001),
         'scoring': hyperparams.get('scoring', 'mean_squared_error'),
-        'optimizer': hyperparams.get('optimizer', 'adam'),
+        'optimizer': hyperparams.get('optimizer', 'rmsprop'),
         'loss': hyperparams.get('loss', 'mean_squared_error'),
-        'metrics': hyperparams.get('metrics', ['accuracy']),
+        'metrics': hyperparams.get('metrics', ['mae']),
     }
     layers = []
     for i, layer in enumerate(hyperparams['layers']):
@@ -68,14 +79,16 @@ def create(hyperparams):
             layers.append(LSTM(layer, return_sequences=True))
 
         layers.append(BatchNormalization())
-        layers.append(Dropout(hyperparams['dropout']))
-        layers.append(Activation(hyperparams['activation']))
-
-    layers.append(Dense(1))
+        if i != len(hyperparams['layers']) - 1:
+            layers.append(Dropout(hyperparams['dropout']))
+            layers.append(Activation(hyperparams['activation']))
+    
+    # layers.append(Dense(8, activation='relu'))
+    layers.append(Dense(1, activation='linear'))
 
     model = Sequential(layers)
     model.compile(
-        loss=hyperparams['scoring'],
+        loss=hyperparams['loss'],
         optimizer=hyperparams['optimizer'],
         metrics=hyperparams['metrics']
     )
@@ -101,21 +114,21 @@ def train(model, hyperparams, train_X_y):
     return evaluate(model, train_X_y["train_X"], train_X_y["train_y"])
 
 
-def predict(model, df, SPLIT="train", features=[], target="Return", episode_length=30):
-    df = df.copy()
+# def predict(model, df, SPLIT="train", features=[], target="Return", episode_length=30):
+#     df = df.copy()
 
-    predictions = []
-    prediction_indices = []
-    for i in range(len(df)):
-        if df.iloc[i]["SPLIT"] == SPLIT:
-            current_row = df.iloc[i]
+#     predictions = []
+#     prediction_indices = []
+#     for i in range(len(df)):
+#         if df.iloc[i]["SPLIT"] == SPLIT:
+#             current_row = df.iloc[i]
             
-            current_row_features = [current_row[feature] for feature in features]
+#             current_row_features = [current_row[feature] for feature in features]
 
-            predictions.append(current_row_features)
-            prediction_indices.append(current_row.name)
+#             predictions.append(current_row_features)
+#             prediction_indices.append(current_row.name)
     
-    for prediction in model.predict(predictions):
-        df.loc[prediction_indices, f"{target}_predicted"] = prediction[0]
+#     for prediction in model.predict(predictions):
+#         df.loc[prediction_indices, f"{target}_predicted"] = prediction[0]
 
-    return df
+#     return df

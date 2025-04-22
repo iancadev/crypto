@@ -18,6 +18,7 @@ def __download_asset(ticker, sampling):
     url = f"https://data.binance.vision/?prefix=data/spot/monthly/klines/{ticker}/{sampling}/"
     output_csv = f"tmp/{ticker}.csv"
     target_csv = f"assets/{ticker}_{sampling}.csv"
+    target_csv = os.path.join(os.path.dirname(__file__), target_csv)
 
     # Set up Selenium WebDriver
     options = Options()
@@ -71,7 +72,7 @@ def __download_asset(ticker, sampling):
                 
                 # Delete the original extracted CSV file
                 os.remove(extracted_csv)
-            time.sleep(1)
+            time.sleep(0.1)
         
         # Move the consolidated CSV to the target location
         os.makedirs(os.path.dirname(target_csv), exist_ok=True)
@@ -95,7 +96,7 @@ def load_asset(ticker, sampling="30m"):
     return df
 
 
-def normalize_data(df, numerical_columns=[], categorical_columns=[], exclude_columns=['Return']):
+def normalize_data(df, numerical_columns=[], categorical_columns=[], exclude_columns=['Return', 'Return_Target']):
     scaler = MinMaxScaler()
     if not numerical_columns:
         numerical_columns = df.select_dtypes(include=['number']).columns.tolist()
@@ -126,6 +127,10 @@ def subset(df, start=pd.Timestamp('2000-01-01'), end=pd.Timestamp('2000-01-01'))
     return df.loc[start:end]
 
 
+def get_min_max_time(df):
+    return df.index.min(), df.index.max()
+
+
 def row_delta(row1, row2):
     return abs(pd.Timedelta(row1.name - row2.name))
 
@@ -140,9 +145,15 @@ def report_gaps(df, delta=pd.Timedelta('30m')):
     return gapTimes
 
 
+def report_and_print_gaps(df, delta=pd.Timedelta('30m')):
+    gaps = report_gaps(df, delta=delta)
+    for gap in gaps:
+        print(f"Gap of {gap[2]} \t\t from {gap[0]} to {gap[1]}")
+
 
 def add_returns(df):
     df['Return'] = (df['Open'].shift(-1) - df['Open']) / df['Open']
+    df['Return_Target'] = df['Return'].shift(-1)
     return df
 
 def add_lookback_returns(df, lookback=14):
@@ -191,6 +202,10 @@ def add_low_open(df, window=14):
     df['Low_Open'] = df['Low'].rolling(window).min() - df['Open'].rolling(window).max()
     return df
 
+def add_expected_returns(df, window=14):
+    df['Expected Return'] = df['Return'].rolling(Window)
+    pass
+
 def add_indicators(df, window=14):
     df = add_RSI(df, window)
     df = add_ADX(df, window)
@@ -232,7 +247,6 @@ def test_data_iterator(splitted_df, lookback=14):
 
     for i in range(lookback, len(splitted_df)):
         if splitted_df.iloc[i]["SPLIT"] == "test":
-            # current_row = splitted_df.iloc[i]
-            # lookback_rows = splitted_df["Return"].iloc[i - lookback:i]
-            # yield {"current": current_row, "lookback": lookback_rows}
-            yield { splitted_df.iloc[i-lookback:i, :]}
+            current_row = splitted_df.iloc[i]
+            lookback_rows = splitted_df["Return"].iloc[i - lookback:i]
+            yield {"current": current_row, "lookback": lookback_rows}

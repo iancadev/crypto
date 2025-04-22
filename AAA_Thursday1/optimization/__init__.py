@@ -171,14 +171,3 @@ def max_sharpe_ratio(mu: np.ndarray,
         # 4) Normalize to sum to 1
         w = w_unnormalized / np.sum(w_unnormalized)
         return w
-
-
-
-    functions =  {
-        'max_return_with_turnover': max_return_with_turnover,
-        'optimize_mean_variance': optimize_mean_variance,
-        'max_sharpe_ratio': max_sharpe_ratio,
-        'update_hyperparams': hyperparams
-    }
-
-    return functions
