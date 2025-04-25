@@ -227,7 +227,7 @@ def add_indicators(df, window=14):
     df = add_low_open(df, window)
     return df
 
-def add_fear_and_greed(df):
+def add_fear_and_greed(df, includeCategory=True):
     f_n_g_csv = __load_file("assets/fear_and_greed.csv")
     if f_n_g_csv is None:
         raise FileNotFoundError("Fear and Greed CSV file not found.")
@@ -237,8 +237,9 @@ def add_fear_and_greed(df):
 
     df = df.copy()  # Avoid potential SettingWithCopyWarning
     df.loc[:, 'plain-date'] = df.index.map(lambda x: x.replace(hour=0, minute=0, second=0, microsecond=0))
-    df.loc[:, 'F&G value'] = df['plain-date'].map(lambda x: f_n_g_csv['value'].loc[x] if x.date() in f_n_g_csv.index.date else None)
-    df.loc[:, 'F&G category'] = df['plain-date'].map(lambda x: f_n_g_csv['classification'].loc[x] if x.date() in f_n_g_csv.index.date else None)
+    df.loc[:, 'F&G'] = df['plain-date'].map(lambda x: f_n_g_csv['value'].get(x.date(), None))
+    if includeCategory:
+        df.loc[:, 'F&G category'] = df['plain-date'].map(lambda x: f_n_g_csv['classification'].get(x.date(), None))
     df.drop(columns=['plain-date'], inplace=True)
     return df
 
