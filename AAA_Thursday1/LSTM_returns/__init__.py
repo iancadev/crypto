@@ -17,41 +17,43 @@ def vectorize_train_data(splitted_df, target="Return_Target", features=["Open", 
     test_X = []
     test_y = []
     test_index = []
-    for i in range(len(splitted_df)):
-        if splitted_df.iloc[i]["SPLIT"] == "train":
-            current_row = splitted_df.iloc[i]
-            
-            current_row_features = [current_row[feature] for feature in features]
-            train_X.append(current_row_features)
-            
-            train_y.append(current_row[target])
 
+    # Create an array of dataframes with progressively dropped rows
+    dfs = [splitted_df.iloc[i:len(splitted_df) - episode_length + i] for i in range(episode_length)][::-1]
+
+    def process_row(i):
+        current_row = splitted_df.iloc[i]
+        current_row_features = np.array([
+            df.iloc[i][features] for df in dfs
+        ])
+        if current_row["SPLIT"] == "train":
+            train_X.append(current_row_features)
+            train_y.append(current_row[target])
             train_index.append(splitted_df.index[i])
-        if splitted_df.iloc[i]["SPLIT"] == "test":
-            current_row = splitted_df.iloc[i]
-            
-            current_row_features = [current_row[feature] for feature in features]
+        elif current_row["SPLIT"] == "test":
             test_X.append(current_row_features)
-            
             test_y.append(current_row[target])
             test_index.append(splitted_df.index[i])
 
-    train_start_i = len(train_X)
+    list(map(process_row, range(len(splitted_df))))
+    
+    return { 'train_X': train_X, 'train_y': train_y, 'test_X': test_X, 'test_y': test_y,
+            'train_index': train_index, 'test_index': test_index }
 
-    # Convert train_X and test_X into episodes
-    train_X = np.array([train_X[i:i + episode_length] for i in range(len(train_X) - episode_length + 1)])
-    train_y = np.array(train_y[episode_length - 1:])
-    train_index = np.array(train_index[episode_length - 1:])
+def vectorize_train_data(splitted_df, target="Return_Target", features=["Open", "High", "Low", "Close", "Volume"], episode_length=30):
+    features_df = splitted_df[features]
+    target = splitted_df[target]
 
-    # Combine train and test data for overlapping episodes
-    combined_X = train_X.tolist() + test_X
-    combined_y = train_y.tolist() + test_y
-    combined_index = train_index.tolist() + test_index
+    i_s = np.arange(episode_length-1, len(splitted_df))
+    train_i_s = i_s[splitted_df.iloc[i_s]["SPLIT"] == "train"]
+    test_i_s = i_s[splitted_df.iloc[i_s]["SPLIT"] == "test"]
 
-    # Generate episodes for test_X and test_y
-    test_X = np.array([combined_X[i:i + episode_length] for i in range(len(train_X), len(combined_X) - episode_length + 1)])
-    test_y = np.array(combined_y[len(train_X) + episode_length - 1:])
-    test_index = np.array(combined_index[len(train_X) + episode_length - 1:])
+    train_X = np.lib.stride_tricks.sliding_window_view(features_df.values, (episode_length, features_df.shape[1]))[train_i_s - episode_length + 1][:, 0, :, :]
+    test_X = np.lib.stride_tricks.sliding_window_view(features_df.values, (episode_length, features_df.shape[1]))[test_i_s - episode_length + 1][:, 0, :, :]
+    train_y = target.values[train_i_s]
+    test_y = target.values[test_i_s]
+    train_index = splitted_df.index[train_i_s]
+    test_index = splitted_df.index[test_i_s]
     
     return { 'train_X': train_X, 'train_y': train_y, 'test_X': test_X, 'test_y': test_y,
             'train_index': train_index, 'test_index': test_index }
@@ -68,23 +70,28 @@ def create(hyperparams):
         'optimizer': hyperparams.get('optimizer', 'rmsprop'),
         'loss': hyperparams.get('loss', 'mean_squared_error'),
         'metrics': hyperparams.get('metrics', ['mae']),
+        '__+ABD_exceptLast': hyperparams.get('__+ABD_exceptLast', True),
+        '__penultRelu': False, # hyperparams.get('__penultRelu', False),
+        '__finalAct': hyperparams.get('__finalAct', 'linear'), # or sigmoid
+        'LSTM_activation': hyperparams.get('activation', 'tanh')
     }
     layers = []
     for i, layer in enumerate(hyperparams['layers']):
         if i == 0:
-            layers.append(LSTM(layer, input_shape=hyperparams['input_shape'], return_sequences=True))
+            layers.append(LSTM(layer, input_shape=hyperparams['input_shape'], return_sequences=True, activation=hyperparams['LSTM_activation']))
         elif i == len(hyperparams['layers']) - 1:
-            layers.append(LSTM(layer, return_sequences=False))
+            layers.append(LSTM(layer, return_sequences=False, activation=hyperparams['LSTM_activation']))
         else:
-            layers.append(LSTM(layer, return_sequences=True))
+            layers.append(LSTM(layer, return_sequences=True, activation=hyperparams['LSTM_activation']))
 
-        layers.append(BatchNormalization())
-        if i != len(hyperparams['layers']) - 1:
-            layers.append(Dropout(hyperparams['dropout']))
+        if hyperparams['__+ABD_exceptLast'] and i != len(hyperparams['layers']) - 1:
             layers.append(Activation(hyperparams['activation']))
+            layers.append(BatchNormalization())
+            layers.append(Dropout(hyperparams['dropout']))
     
-    # layers.append(Dense(8, activation='relu'))
-    layers.append(Dense(1, activation='linear'))
+    # if hyperparams['__penultRelu']:
+    #     layers.append(Dense(8, activation='relu'))
+    layers.append(Dense(1, activation=hyperparams['__finalAct']))
 
     model = Sequential(layers)
     model.compile(
@@ -105,13 +112,16 @@ def evaluate(model, x, y):
     }
 
 
-def train(model, hyperparams, train_X_y):
+def train(model, hyperparams, train_X_y, evaluateAtEnd=True):
     hyperparams = train_hyperparams = {
         'epochs': hyperparams.get('epochs', 10),
         'batch_size': hyperparams.get('batch_size', 32),
     }
-    model.fit(train_X_y["train_X"], train_X_y["train_y"], epochs=hyperparams['epochs'], batch_size=hyperparams['batch_size'], verbose=1)
-    return evaluate(model, train_X_y["train_X"], train_X_y["train_y"])
+    results = model.fit(train_X_y["train_X"], train_X_y["train_y"], epochs=hyperparams['epochs'], batch_size=hyperparams['batch_size'], verbose=1)
+    if evaluateAtEnd:
+        return evaluate(model, train_X_y["train_X"], train_X_y["train_y"])
+    else:
+        return results
 
 
 
@@ -150,8 +160,9 @@ def all_folds_plot(model, folds):
     ax1.legend()
 
     # Add vertical lines and labels for fold boundaries
-    for tick in fold_ticks:
+    for tick, prefix in zip(fold_ticks, prefixes):
         ax1.axvline(x=tick, color='gray', linestyle=':', alpha=0.7)
+        ax1.text(tick, ax1.get_ylim()[1], prefix, rotation=90, verticalalignment='bottom', fontsize=8, color='gray')
 
     # Plot residuals on the second subplot
     ax2.scatter(all_indices, residuals, label='Residuals', color='red', alpha=0.2, s=10)
@@ -160,11 +171,12 @@ def all_folds_plot(model, folds):
     ax2.set_xlabel('Index')
 
     # Add vertical lines for fold boundaries in the residuals plot
-    for tick in fold_ticks:
+    for tick, prefix in zip(fold_ticks, prefixes):
         ax2.axvline(x=tick, color='gray', linestyle=':', alpha=0.7)
+        ax2.text(tick, ax1.get_ylim()[1], prefix, rotation=90, verticalalignment='bottom', fontsize=8, color='gray')
 
     plt.tight_layout()  # Ensure the layout fits within the figure size
-    plt.show()
+    # plt.show()
     return plt
 
 

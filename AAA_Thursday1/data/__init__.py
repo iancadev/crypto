@@ -102,7 +102,8 @@ def load_asset(ticker, sampling="30m"):
 
 
 def normalize_data(df, numerical_columns=[], categorical_columns=[], exclude_columns=['Return', 'Return_Target']):
-    scaler = MinMaxScaler()
+    columns = { key: 'standard' for key in df.columns}
+
     if not numerical_columns:
         numerical_columns = df.select_dtypes(include=['number']).columns.tolist()
         numerical_columns = [nc for nc in numerical_columns if nc not in exclude_columns]
@@ -110,16 +111,26 @@ def normalize_data(df, numerical_columns=[], categorical_columns=[], exclude_col
         categorical_columns = df.select_dtypes(include=['object']).columns.tolist()
         categorical_columns = [cc for cc in categorical_columns if cc not in exclude_columns]
 
-    df[numerical_columns] = scaler.fit_transform(df[numerical_columns])
+
+    for col in numerical_columns:
+        scaler = MinMaxScaler()
+        df[col] = scaler.fit_transform(df[[col]])
+        # df[['Open', 'High', 'Low', 'Close']] = scaler.fit_transform(df[['Open', 'High', 'Low', 'Close']])
+        columns[col] = scaler  # Store the scaler itself to allow inverse transformation later
 
     for col in categorical_columns:
         if df[col].nunique() > 2:
             one_hot = pd.get_dummies(df[col], prefix=col)
             df = pd.concat([df, one_hot], axis=1)
             df = df.drop(columns=[col])
+            columns.update({f"{col}_{category}": 'one_hot' for category in df[col].unique()})
         else:
+            original_mapping = {0: df[col].unique()[0], 1: df[col].unique()[1]}
             df[col] = df[col].map({df[col].unique()[0]: 0, df[col].unique()[1]: 1})
-    return df
+            columns[col] = lambda x: original_mapping[x]  # Store a function to map back to original values
+    
+    return df, columns
+
 
 
 def subset(df, start=pd.Timestamp('2000-01-01'), end=pd.Timestamp('2000-01-01')):
@@ -140,13 +151,9 @@ def row_delta(row1, row2):
     return abs(pd.Timedelta(row1.name - row2.name))
 
 def report_gaps(df, delta=pd.Timedelta('30m')):
-    gapTimes = []
-    rows = list(df.iterrows())
-    for S1, S2 in zip(rows[:-1], rows[1:]):
-        i1, row1 = S1
-        i2, row2 = S2
-        if row_delta(row1, row2) > delta:
-            gapTimes.append((row1.name, row2.name, row_delta(row1, row2)))
+    time_diffs = df.index.to_series().diff().iloc[1:]  # Calculate time differences between consecutive rows
+    gap_indices = time_diffs[time_diffs > delta].index  # Find indices where the gap exceeds the delta
+    gapTimes = [(gap_indices[i - 1], gap_indices[i], time_diffs[gap_indices[i]]) for i in range(1, len(gap_indices))]
     return gapTimes
 
 
