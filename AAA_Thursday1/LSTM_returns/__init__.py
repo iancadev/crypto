@@ -154,7 +154,7 @@ def all_folds_plot(model, folds):
         ax1.axvline(x=tick, color='gray', linestyle=':', alpha=0.7)
 
     # Plot residuals on the second subplot
-    ax2.plot(all_indices, residuals, label='Residuals', color='red', alpha=0.7)
+    ax2.scatter(all_indices, residuals, label='Residuals', color='red', alpha=0.2, s=10)
     ax2.axhline(y=0, color='black', linestyle='--', alpha=0.8)  # Add a line for y=0
     ax2.set_ylabel('Residuals')
     ax2.set_xlabel('Index')
