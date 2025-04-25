@@ -114,6 +114,61 @@ def train(model, hyperparams, train_X_y):
     return evaluate(model, train_X_y["train_X"], train_X_y["train_y"])
 
 
+
+def all_folds_plot(model, folds):
+    keys = folds.keys()
+    prefixes = set(key.rsplit('_', 1)[0] for key in keys)
+
+    predictions = [model.predict(folds[prefix + '_X']) for prefix in prefixes]
+    trues = [folds[prefix + '_y'] for prefix in prefixes]
+
+    import matplotlib.pyplot as plt
+
+    # Concatenate predictions and trues for all folds
+    all_predictions = np.concatenate(predictions)
+    all_trues = np.concatenate(trues)
+
+    # Create a dummy range for the x-axis
+    all_indices = np.arange(len(all_predictions))
+
+    # Create ticks to demarcate each fold
+    fold_ticks = [0]
+    for prefix in prefixes:
+        fold_ticks.append(fold_ticks[-1] + len(folds[prefix + '_y']))
+
+    # Calculate residuals
+    residuals = all_trues - all_predictions.flatten()
+
+    # Create a figure with two vertically stacked subplots
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 6), sharex=True)
+
+    # Plot predictions vs true values on the first subplot
+    ax1.plot(all_indices, all_trues, label='True Values', linestyle='--')
+    ax1.plot(all_indices, all_predictions, label='Predictions', linestyle='-')
+    ax1.set_ylabel('Value')
+    ax1.set_title('Predictions vs True Values Across Folds')
+    ax1.legend()
+
+    # Add vertical lines and labels for fold boundaries
+    for tick in fold_ticks:
+        ax1.axvline(x=tick, color='gray', linestyle=':', alpha=0.7)
+
+    # Plot residuals on the second subplot
+    ax2.plot(all_indices, residuals, label='Residuals', color='red', alpha=0.7)
+    ax2.axhline(y=0, color='black', linestyle='--', alpha=0.8)  # Add a line for y=0
+    ax2.set_ylabel('Residuals')
+    ax2.set_xlabel('Index')
+
+    # Add vertical lines for fold boundaries in the residuals plot
+    for tick in fold_ticks:
+        ax2.axvline(x=tick, color='gray', linestyle=':', alpha=0.7)
+
+    plt.tight_layout()  # Ensure the layout fits within the figure size
+    plt.show()
+    return plt
+
+
+
 # def predict(model, df, SPLIT="train", features=[], target="Return", episode_length=30):
 #     df = df.copy()
 
