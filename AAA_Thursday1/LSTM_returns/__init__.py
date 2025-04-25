@@ -4,6 +4,7 @@ from tensorflow.keras.models import load_model
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Dropout, Activation, Flatten, BatchNormalization
 from sklearn.metrics import mean_squared_error, r2_score
+import matplotlib.pyplot as plt
 # optuna scrap goes in the ipynb, okay?
 
 def vectorize_train_data(splitted_df, target="Return_Target", features=["Open", "High", "Low", "Close", "Volume"], episode_length=30):
@@ -125,14 +126,15 @@ def train(model, hyperparams, train_X_y, evaluateAtEnd=True):
 
 
 
-def all_folds_plot(model, folds):
+def all_folds_plot(model, folds, mean=False):
     keys = folds.keys()
     prefixes = set(key.rsplit('_', 1)[0] for key in keys)
 
-    predictions = [model.predict(folds[prefix + '_X']) for prefix in prefixes]
+    if not mean:
+        predictions = [model.predict(folds[prefix + '_X'])[:, -1] for prefix in prefixes]
+    else:
+        predictions = [model.predict(folds[prefix + '_X']).mean(axis=1) for prefix in prefixes]
     trues = [folds[prefix + '_y'] for prefix in prefixes]
-
-    import matplotlib.pyplot as plt
 
     # Concatenate predictions and trues for all folds
     all_predictions = np.concatenate(predictions)
