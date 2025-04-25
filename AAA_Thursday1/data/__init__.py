@@ -40,9 +40,6 @@ def __download_asset(ticker, sampling):
         # Create the local folder if it doesn't exist
         os.makedirs('tmp', exist_ok=True)
 
-        with open(output_csv, 'w') as file:
-            file.write("Open time,Open,High,Low,Close,Volume,Close time,Quote asset volume,Number of trades,Taker buy base asset volume,Taker buy quote asset volume,Ignore\n")
-
         for i, link in enumerate(zip_links):
             print(f"{i+1}/{len(zip_links)}")
             file_name = os.path.join('tmp', os.path.basename(link))
@@ -74,6 +71,14 @@ def __download_asset(ticker, sampling):
                 os.remove(extracted_csv)
             time.sleep(0.1)
         
+        
+        # Add header to the beginning of the output_csv file
+        with open(output_csv, 'r+') as file:
+            content = file.read()
+            file.seek(0, 0)
+            file.write("Open time,Open,High,Low,Close,Volume,Close time,Quote asset volume,Number of trades,Taker buy base asset volume,Taker buy quote asset volume,Ignore\n" + content)
+
+
         # Move the consolidated CSV to the target location
         os.makedirs(os.path.dirname(target_csv), exist_ok=True)
         os.replace(output_csv, target_csv)
