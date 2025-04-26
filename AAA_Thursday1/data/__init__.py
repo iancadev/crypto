@@ -236,11 +236,10 @@ def add_fear_and_greed(df, includeCategory=True):
     f_n_g_csv.set_index('date', inplace=True)
 
     df = df.copy()  # Avoid potential SettingWithCopyWarning
-    df.loc[:, 'plain-date'] = df.index.map(lambda x: x.replace(hour=0, minute=0, second=0, microsecond=0))
-    df.loc[:, 'F&G'] = df['plain-date'].map(lambda x: f_n_g_csv['value'].get(x.date(), None))
+    plainDate = df.index.map(lambda x: x.replace(hour=0, minute=0, second=0, microsecond=0))
+    df.loc[:, 'F&G'] = plainDate.map(lambda x: f_n_g_csv['value'].get(x, None))
     if includeCategory:
         df.loc[:, 'F&G category'] = df['plain-date'].map(lambda x: f_n_g_csv['classification'].get(x.date(), None))
-    df.drop(columns=['plain-date'], inplace=True)
     return df
 
 

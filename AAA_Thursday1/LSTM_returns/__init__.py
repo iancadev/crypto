@@ -152,7 +152,7 @@ def all_folds_plot(model, folds, mean=False):
     residuals = all_trues - all_predictions.flatten()
 
     # Create a figure with two vertically stacked subplots
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 6), sharex=True)
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8), gridspec_kw={'height_ratios': [1, 1]}, sharex=True)
 
     # Plot predictions vs true values on the first subplot
     ax1.plot(all_indices, all_trues, label='True Values', linestyle='--')
@@ -161,21 +161,27 @@ def all_folds_plot(model, folds, mean=False):
     ax1.set_title('Predictions vs True Values Across Folds')
     ax1.legend()
 
-    # Add vertical lines and labels for fold boundaries
-    for tick, prefix in zip(fold_ticks, prefixes):
-        ax1.axvline(x=tick, color='gray', linestyle=':', alpha=0.7)
-        ax1.text(tick, ax1.get_ylim()[1], prefix, rotation=90, verticalalignment='bottom', fontsize=8, color='gray')
-
     # Plot residuals on the second subplot
     ax2.scatter(all_indices, residuals, label='Residuals', color='red', alpha=0.2, s=10)
     ax2.axhline(y=0, color='black', linestyle='--', alpha=0.8)  # Add a line for y=0
     ax2.set_ylabel('Residuals')
     ax2.set_xlabel('Index')
 
-    # Add vertical lines for fold boundaries in the residuals plot
-    for tick, prefix in zip(fold_ticks, prefixes):
+
+    # Add vertical lines for fold boundaries
+    # for tick, prefix in zip(fold_ticks, prefixes):
+    #     ax1.axvline(x=tick, color='gray', linestyle=':', alpha=0.7)
+    #     ax1.text(tick, ax1.get_ylim()[1], prefix, rotation=90, verticalalignment='bottom', fontsize=8, color='gray')
+    # for tick, prefix in zip(fold_ticks, prefixes):
+    #     ax2.axvline(x=tick, color='gray', linestyle=':', alpha=0.7)
+    #     ax2.text(tick, ax1.get_ylim()[1], prefix, rotation=90, verticalalignment='bottom', fontsize=8, color='gray')
+
+
+    for tick in fold_ticks:
+        ax1.axvline(x=tick, color='gray', linestyle=':', alpha=0.7)
         ax2.axvline(x=tick, color='gray', linestyle=':', alpha=0.7)
-        ax2.text(tick, ax1.get_ylim()[1], prefix, rotation=90, verticalalignment='bottom', fontsize=8, color='gray')
+    for tick, prefix in zip(fold_ticks[:-1], prefixes):
+        ax2.text(tick, ax2.get_ylim()[1]*0.95, prefix, rotation=90, verticalalignment='top', fontsize=8, color='gray')
 
     plt.tight_layout()  # Ensure the layout fits within the figure size
     # plt.show()
