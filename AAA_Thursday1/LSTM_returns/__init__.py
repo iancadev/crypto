@@ -155,7 +155,7 @@ def all_folds_plot(model, folds, mean=False):
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8), gridspec_kw={'height_ratios': [1, 1]}, sharex=True)
 
     # Plot predictions vs true values on the first subplot
-    ax1.plot(all_indices, all_trues, label='True Values', linestyle='--')
+    ax1.plot(all_indices, all_trues, label='True Values', linestyle='-')
     ax1.plot(all_indices, all_predictions, label='Predictions', linestyle='-')
     ax1.set_ylabel('Value')
     ax1.set_title('Predictions vs True Values Across Folds')
