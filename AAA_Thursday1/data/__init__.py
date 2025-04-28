@@ -239,7 +239,7 @@ def add_fear_and_greed(df, includeCategory=True):
     plainDate = df.index.map(lambda x: x.replace(hour=0, minute=0, second=0, microsecond=0))
     df.loc[:, 'F&G'] = plainDate.map(lambda x: f_n_g_csv['value'].get(x, None))
     if includeCategory:
-        df.loc[:, 'F&G category'] = df['plain-date'].map(lambda x: f_n_g_csv['classification'].get(x.date(), None))
+        df.loc[:, 'F&G category'] = plainDate.map(lambda x: f_n_g_csv['classification'].get(x, None))
     return df
 
 
