@@ -1,8 +1,8 @@
 import numpy as np
 import pandas as pd
 from tensorflow.keras.models import load_model
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense, Dropout, Activation, Flatten, BatchNormalization, Conv1D
+from tensorflow.keras.models import Sequential, Model
+from tensorflow.keras.layers import Input, LSTM, Dense, Dropout, Activation, Flatten, BatchNormalization, Conv1D, Add
 from sklearn.metrics import mean_squared_error, r2_score
 from tensorflow.keras.utils import to_categorical
 import matplotlib.pyplot as plt
@@ -52,6 +52,8 @@ def vectorize_train_data(splitted_df, target="Return_Target", features=["Open", 
 
     train_X = np.lib.stride_tricks.sliding_window_view(features_df.values, (episode_length, features_df.shape[1]))[train_i_s - episode_length + 1][:, 0, :, :]
     test_X = np.lib.stride_tricks.sliding_window_view(features_df.values, (episode_length, features_df.shape[1]))[test_i_s - episode_length + 1][:, 0, :, :]
+    train_y = target.values[train_i_s]
+    test_y = target.values[test_i_s]
     train_index = splitted_df.index[train_i_s]
     test_index = splitted_df.index[test_i_s]
     
@@ -165,7 +167,8 @@ def create_classification(hyperparams):
 def create_tcn(hyperparams):
     hyperparams = model_hyperparams = {
         'input_shape': hyperparams['input_shape'],  # not optional
-        'filters': hyperparams.get('filters', [64, 32]),
+        'dilations': hyperparams.get('dilations', [1, 2, 4]),
+        'num_filters': hyperparams.get('num_filters', 64),
         'kernel_size': hyperparams.get('kernel_size', 3),
         'activation': hyperparams.get('activation', 'relu'),
         'dropout': hyperparams.get('dropout', 0.2),
@@ -176,25 +179,53 @@ def create_tcn(hyperparams):
         'metrics': hyperparams.get('metrics', ['mae']),
         '__finalAct': hyperparams.get('__finalAct', 'linear')  # or sigmoid
     }
-    layers = []
-    for i, filters in enumerate(hyperparams['filters']):
-        if i == 0:
-            layers.append(Conv1D(filters, kernel_size=hyperparams['kernel_size'], activation=hyperparams['activation'], input_shape=hyperparams['input_shape']))
-        else:
-            layers.append(Conv1D(filters, kernel_size=hyperparams['kernel_size'], activation=hyperparams['activation']))
-        layers.append(BatchNormalization())
-        layers.append(Dropout(hyperparams['dropout']))
-    
-    layers.append(Flatten())
-    layers.append(Dense(1, activation=hyperparams['__finalAct']))
 
-    model = Sequential(layers)
-    model.compile(
-        loss=hyperparams['loss'],
-        optimizer=hyperparams['optimizer'],
-        metrics=hyperparams['metrics']
-    )
+    inputs = Input(shape=hyperparams['input_shape'])
+    x = inputs
+    
+    for dilation_rate in hyperparams['dilations']:
+        prev_x = x
+        x = Conv1D(filters=hyperparams['num_filters'], kernel_size=hyperparams['kernel_size'], padding='causal', 
+                   dilation_rate=dilation_rate, activation='relu')(x)
+        x = BatchNormalization()(x)
+        x = Dropout(hyperparams['dropout'])(x)
+        x = Conv1D(filters=hyperparams['num_filters'], kernel_size=hyperparams['kernel_size'], padding='causal', 
+                   dilation_rate=dilation_rate, activation='relu')(x)
+        x = BatchNormalization()(x)
+        x = Dropout(hyperparams['dropout'])(x)
+        
+        # Residual connection
+        if prev_x.shape[-1] != x.shape[-1]:
+            prev_x = Conv1D(hyperparams['num_filters'], 1, padding='same')(prev_x)
+        x = Add()([x, prev_x])
+        x = Activation('relu')(x)
+    
+    x = Flatten()(x)
+    outputs = Dense(1, activation=hyperparams['__finalAct'])(x)
+    
+    model = Model(inputs, outputs)
+    model.compile(optimizer='adam', loss='mse', metrics=['mae'])
     return model
+
+    # layers = []
+    # for i, filters in enumerate(hyperparams['filters']):
+    #     if i == 0:
+    #         layers.append(Conv1D(filters, kernel_size=hyperparams['kernel_size'], activation=hyperparams['activation'], input_shape=hyperparams['input_shape']))
+    #     else:
+    #         layers.append(Conv1D(filters, kernel_size=hyperparams['kernel_size'], activation=hyperparams['activation']))
+    #     layers.append(BatchNormalization())
+    #     layers.append(Dropout(hyperparams['dropout']))
+    
+    # layers.append(Flatten())
+    # layers.append(Dense(1, activation=hyperparams['__finalAct']))
+
+    # model = Sequential(layers)
+    # model.compile(
+    #     loss=hyperparams['loss'],
+    #     optimizer=hyperparams['optimizer'],
+    #     metrics=hyperparams['metrics']
+    # )
+    # return model
 
 
 def evaluate(model, x, y):
@@ -297,7 +328,7 @@ def all_folds_plot_classification(model, folds, classLabels):
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8), gridspec_kw={'height_ratios': [1, 1]}, sharex=True)
 
     ax1.plot(all_indices, all_trues, label='True Values', linestyle='-')
-    ax1.plot(all_indices, all_predictions, label='Predictions', linestyle='-')
+    ax1.plot(all_indices, all_predictions, label='Predictions', linestyle='-', alpha=0.5)
     ax1.set_ylabel('Value')
     ax1.set_title('Predictions vs True Values Across Folds')
     ax1.legend()
