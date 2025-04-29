@@ -215,7 +215,7 @@ def add_low_open(df, window=14):
     return df
 
 def add_expected_returns(df, window=14):
-    df['Expected Return'] = df['Return'].rolling(Window)
+    df['Expected Return'] = df['Return'].rolling(window)
     pass
 
 def add_indicators(df, window=14):
@@ -225,6 +225,10 @@ def add_indicators(df, window=14):
     df = add_high_low(df, window)
     df = add_high_open(df, window)
     df = add_low_open(df, window)
+    return df
+
+def add_forward_VaR(df, window=14, quantile=5):
+    df[f'VaR_{window}_{quantile}'] = df['Return'].rolling(window).apply(lambda x: x.quantile(quantile/100), raw=False).shift(-window)
     return df
 
 def add_fear_and_greed(df, includeCategory=True):
@@ -240,6 +244,24 @@ def add_fear_and_greed(df, includeCategory=True):
     df.loc[:, 'F&G'] = plainDate.map(lambda x: f_n_g_csv['value'].get(x, None))
     if includeCategory:
         df.loc[:, 'F&G category'] = plainDate.map(lambda x: f_n_g_csv['classification'].get(x, None))
+    return df
+
+
+def add_quantized_returns(df, count=15, bounds=0.5):
+    returns = (df['Open'].shift(-1) - df['Open']) / df['Open']
+    bins = [-bounds + i * (2 * bounds / count) for i in range(count + 1)]
+    labels = list(range(count))
+    df['Quantized Return'] = pd.cut(returns, bins=bins, labels=labels, include_lowest=True)
+    return df
+
+def quantized_labels(count=15, bounds=0.5):
+    bins = [-bounds + i * (2 * bounds / count) for i in range(count + 1)]
+    return [(bins[i] + bins[i + 1]) / 2 for i in range(len(bins) - 1)]
+
+def unconvert_quantized_returns(df, count=15, bounds=0.5):
+    bins = [-bounds + i * (2 * bounds / count) for i in range(count + 1)]
+    labels = [(bins[i] + bins[i + 1]) / 2 for i in range(len(bins) - 1)]
+    df['Unquantized Return'] = df['Quantized Return'].map(lambda x: labels[x] if pd.notnull(x) else None)
     return df
 
 

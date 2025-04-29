@@ -1,0 +1,2 @@
+lstm_units,num_layers,batch_size,dropout_rate,learning_rate,lstm_activation,features,episode_length,score (MSE),file
+76,3,128,1,0.01,tanh,all,50,0.0029947375878691673,trials-after-1.6/stupid 00001.png
