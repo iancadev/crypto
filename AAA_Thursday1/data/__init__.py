@@ -227,6 +227,10 @@ def add_indicators(df, window=14):
     df = add_low_open(df, window)
     return df
 
+def add_forward_VaR(df, window=14, quantile=5):
+    df[f'VaR_{window}_{quantile}'] = df['Return'].rolling(window).apply(lambda x: x.quantile(quantile/100), raw=False).shift(-window)
+    return df
+
 def add_fear_and_greed(df, includeCategory=True):
     f_n_g_csv = __load_file("assets/fear_and_greed.csv")
     if f_n_g_csv is None:
